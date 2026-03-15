@@ -1,0 +1,4 @@
+{
+  "MOVIEPILOT_URL": "http://127.0.0.1:3000",
+  "MOVIEPILOT_API_TOKEN": "your_api_token_here"
+}
