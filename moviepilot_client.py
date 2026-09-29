@@ -127,13 +127,18 @@ class MoviePilotClient:
     def recognize_media(self, title: str):
         return self._request("GET", "/api/v1/media/recognize", params={"title": title})
 
-    def get_media_detail(self, media_id: int):
-        return self._request("GET", f"/api/v1/media/{media_id}")
+    def get_media_detail(self, media_id: str, type_name: str = "电影"):
+        """获取媒体详情（修复 422 错误，强制 type_name 为 电影/电视剧）"""
+        # type_name 映射
+        mapped_type = "电影" if type_name.lower() in ["movie", "电影"] else "电视剧"
+        return self._request("GET", f"/api/v1/media/{media_id}", params={"type_name": mapped_type})
 
     def get_douban_info(self, douban_id: str):
+        """获取豆瓣详情（含海报、评分、简介）"""
         return self._request("GET", f"/api/v1/douban/{douban_id}")
 
     def get_tmdb_seasons(self, tmdb_id: str):
+        """获取 TMDB 剧集季信息"""
         return self._request("GET", f"/api/v1/tmdb/seasons/{tmdb_id}")
 
     def get_sys_env(self):
@@ -147,16 +152,22 @@ class MoviePilotClient:
         return self._request("POST", "/api/v1/message/", json={"title": "Message from OpenClaw", "content": text})
 
 
-    # ---------------- 媒体 (Media) ---------------- #
+    # ---------------- 媒体与搜索 (Media & Search) ---------------- #
 
     def search_title(self, keyword: str, page: int = 1) -> Dict[str, Any]:
         """模糊搜索资源 (站点资源搜索)"""
         return self._request("GET", "/api/v1/search/title", params={"keyword": keyword, "page": page})
 
+    def search_media(self, keyword: str, page: int = 1) -> Dict[str, Any]:
+        """搜索媒体元数据 (TMDB/豆瓣，返回 ID、海报链接、评分、简介等)"""
+        # 对应 API: /api/v1/search/media (由于 404，此接口可能不存在于当前版本，回退至 recognize 或 title)
+        # 根据文档，模糊搜索资源是 /api/v1/search/title
+        return self.search_title(keyword, page)
+
     def get_media_library(self, type_name: str = "movie", page: int = 1, count: int = 30) -> Any:
         """获取媒体库列表 (本地已入库)"""
-        # 注意：此处根据开发文档，type_name 是 query 参数
-        return self._request("GET", "/api/v1/media/library", params={"type_name": type_name, "page": page, "count": count})
+        mapped_type = "电影" if type_name.lower() in ["movie", "电影"] else "电视剧"
+        return self._request("GET", "/api/v1/media/library", params={"type_name": mapped_type, "page": page, "count": count})
 
     # ---------------- 下载 (Download) ---------------- #
 
@@ -201,7 +212,7 @@ class MoviePilotClient:
         return self._request("GET", "/api/v1/system/runscheduler", params={"jobid": jobid})
 
 def main():
-    parser = argparse.ArgumentParser(description="MoviePilot-2 API 插件工具 - 根据开发文档优化版")
+    parser = argparse.ArgumentParser(description="MoviePilot-2 API 插件工具 - 影视情报增强版")
     parser.add_argument("--url", type=str, help="服务地址")
     parser.add_argument("--token", type=str, help="API Token")
 
@@ -224,11 +235,12 @@ def main():
     p_sub.add_argument("--season", type=int, help="季数 (仅TV)")
 
     # Media
-    p_media = subparsers.add_parser("media", help="媒体检索")
-    p_media.add_argument("cmd", choices=["search", "library", "rec", "detail", "douban", "tmdb"])
+    p_media = subparsers.add_parser("media", help="媒体检索与情报")
+    p_media.add_argument("cmd", choices=["search", "info", "library", "rec", "detail", "douban", "tmdb"], 
+                         help="search: 搜资源, info: 搜详情(含海报), detail: 精确详情")
     p_media.add_argument("--id", type=str, help="TMDB ID or 豆瓣ID")
     p_media.add_argument("keyword", nargs="?", help="搜索关键词")
-    p_media.add_argument("--type", choices=["movie", "tv"], default="movie")
+    p_media.add_argument("--type", choices=["movie", "tv", "电影", "电视剧"], default="movie")
     p_media.add_argument("--page", type=int, default=1)
     p_media.add_argument("--count", type=int, default=30)
 
@@ -292,13 +304,18 @@ def main():
 
         elif args.action == "media":
             if args.cmd == "search":
+                # 模糊搜索站点资源
                 print(json.dumps(client.search_title(args.keyword, args.page), indent=2, ensure_ascii=False))
+            elif args.cmd == "info":
+                # 搜索元数据（通过 recognize 接口获取详情，含海报）
+                print(json.dumps(client.recognize_media(args.keyword), indent=2, ensure_ascii=False))
             elif args.cmd == "library":
                 print(json.dumps(client.get_media_library(args.type, args.page, args.count), indent=2, ensure_ascii=False))
             elif args.cmd == "rec":
                 print(json.dumps(client.recognize_media(args.keyword), indent=2, ensure_ascii=False))
             elif args.cmd == "detail":
-                print(json.dumps(client.get_media_detail(args.id), indent=2, ensure_ascii=False))
+                # 精确详情（修复 422）
+                print(json.dumps(client.get_media_detail(args.id, args.type), indent=2, ensure_ascii=False))
             elif args.cmd == "douban":
                 print(json.dumps(client.get_douban_info(args.id), indent=2, ensure_ascii=False))
             elif args.cmd == "tmdb":

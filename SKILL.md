@@ -15,6 +15,14 @@ metadata: { "openclaw": { "emoji": "🎞️", "requires": { "bins": [], "python_
 
 ---
 
+## 📢 使用须知 (User Notes)
+
+- **精准订阅**：如果直接搜片名搜不到，可以告诉老猪“订阅电影/剧集 [名称]”，老猪会自动查询 TMDB ID 并帮你强行上车。
+- **满血请求**：注意，添加订阅命令 `sub add` 仅接受 `--id`, `--type` (以及可选的 `--season`) 参数，**不接受** `--title` 或 `--year` 参数。如果直接搜片名搜不到，先用 `web_search` 或 `media search` 获取 TMDB ID，然后直接使用 `sub add --id <TMDBID> --type <movie/tv>` 订阅。
+- **状态同步**：你可以随时问我“最近在下什么”或者“库里有多少存货”，老猪会调取实时的仪表盘数据给你。
+
+---
+
 ## ⚡ 快速上手
 
 ```bash
@@ -123,14 +131,26 @@ Token 失效时：登录 MoviePilot → 设置 → 用户 → 重新生成 API T
 
 ---
 
-## 🧠 Agent 调用建议
+## 🧠 Agent 核心调用准则 (CRITICAL)
 
-- **查影视库统计** → `status`
-- **找片子** → `media search <关键词>`
-- **查当前有什么在下** → `dl list`
-- **追剧管理** → `media rec` 精准识别后用 `sub` 添加订阅
-- **诊断下载卡住** → 依次 `dl info` → `site test --id <ID>` → `sys info`
-- **获取豆瓣评价** → `media douban <豆瓣ID>`
+为了确保 MoviePilot 后端能够精准处理请求，Agent 在调用插件时必须严格遵守以下“满血信息”原则：
+
+1. **拒绝“单 ID”请求**：在执行订阅 (`sub add`)、搜索或识别任务时，**严禁**只发送一个 `tmdbId`。
+2. **参数限制**：执行订阅 (`sub add`) 时，**仅**支持 `--id`, `--type`, `--season`。**严禁**传递 `--title` 或 `--year`，否则会导致脚本解析错误。补全信息应在 `media search` 或 `web_search` 阶段完成以确认正确的 ID。
+3. **订阅兜底策略**：
+   - 若模糊搜索 (`media search`) 结果不理想，Agent 必须通过联网搜索 (`web_search`) 获取该影片的精准 **TMDB ID**。
+   - 拿到 ID 后，直接调用 `sub add` 接口，并带齐 `--tmdbid`, `--title`, `--year`, `--type` 参数进行“强制录入”。
+4. **鉴权异常处理**：若遇到 `401 Unauthorized` 或 `apikey 校验不通过`，Agent 必须检查 `config.json` 中的 Token 格式。MP API 的鉴权方式多样，必要时需尝试将 Token 作为 URL 参数 (`&token=xxx`) 或 Header (`Authorization: Bearer xxx`)。
+
+---
+
+## [Best Practice] - 2026-03-28
+- **精准媒体识别技巧**：在执行 `media search` 或 `sub add` 之前，如果用户提供的片名模糊，优先调用 `web_search` 确认该作品的准确 **TMDB ID** 和 **年份**。
+- **订阅强制上车**：对于搜索结果为空的资源，直接使用 `sub add --id <TMDBID> --type <movie/tv>` 进行强制订阅，注意 `sub add` 仅支持 `--id`、`--type`、`--season`，不能添加 `--title` 或 `--year`。
+- **批量海报缓存**：在展示多条搜索结果或订阅列表时，可以先通过 `curl` 批量下载 TMDB 海报到 `/home/rs/.openclaw/workspace/cache/posters`，然后结合消息发送工具展示，视觉体验更佳。
+- **详情穿透查询**：获取剧集信息时，`media detail` 仅返回基础信息，若需获取各季详情（如总集数、每季名称），应追加调用 `media tmdb <TMDBID> --type tv`。
+
+---
 
 ## 📝 全功能使用示例
 
