@@ -41,7 +41,7 @@ class MoviePilotClient:
             if "token" not in kwargs["params"]:
                 kwargs["params"]["token"] = self.api_token
         try:
-            response = requests.request(method, url, headers=self.headers, timeout=15, **kwargs)
+            response = requests.request(method, url, headers=self.headers, timeout=60, **kwargs)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.HTTPError as e:
